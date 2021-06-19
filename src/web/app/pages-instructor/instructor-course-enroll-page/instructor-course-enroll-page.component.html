@@ -100,12 +100,30 @@
                     title="Enroll"
                     id="btn-enroll"
                     name="button-enroll"
-                    class="btn btn-success float-right"
+                    class="btn btn-success float-right btn-enroll"
                     [disabled]="isEnrolling"
                     (click)="submitEnrollData()">
                   <tm-ajax-loading *ngIf="isEnrolling"></tm-ajax-loading>
                   Enroll students
                 </button>
+                <button
+                    type="button"
+                    title="Upload"
+                    id="btn-upload"
+                    name="button-upload"
+                    class="btn btn-success float-right btn-upload"
+                    [disabled]="isUploading"
+                    (click)="uploadEnrollData()">
+                  <tm-ajax-loading *ngIf="isEnrolling"></tm-ajax-loading>
+                  Upload Excel
+                </button>
+                <input
+                    type="file"
+                    style="display: inline-block;"
+                    class="float-right"
+                    (change)="getStudentExcelFile($event)"
+                    placeholder="Upload excel file"
+                    accept=".xlsx">
               </div>
             </div>
           </div>

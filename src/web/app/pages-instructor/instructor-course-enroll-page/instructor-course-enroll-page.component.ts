@@ -53,7 +53,7 @@ export class InstructorCourseEnrollPageComponent implements OnInit {
   statusMessage: StatusMessage[] = [];
   unsuccessfulEnrolls: { [email: string]: string } = {};
   arrayBuffer: any;
-  file: File;
+  file: File[] = [];
 
   @ViewChild('moreInfo') moreInfo?: ElementRef;
 
@@ -531,35 +531,81 @@ export class InstructorCourseEnrollPageComponent implements OnInit {
    * Gets uploaded excel file.
    */
   getStudentExcelFile(event) {
-    this.file = event.target.files[0];
+    for (var i = 0; i < event.target.files.length; i++) {
+      this.file[i] = event.target.files[i];
+    }
+
+    // Reset uploaded file if no file chosen
+    if (event.target.files.length == 0) {
+      this.file = [];
+    }
+  }
+
+  /*
+   * Reads in data from excel file(s)
+   */
+  readExcelFile(file) {
+    return new Promise(function(resolve, reject) {
+      // Solution below adapted from https://www.codegrepper.com/code-examples/javascript/read+xlsx+and+xls+file+in+typescript
+      const fr = new FileReader();
+
+      fr.onload = function() {
+        this.arrayBuffer = fr.result;
+        var data = new Uint8Array(this.arrayBuffer);
+        var arr = new Array();
+        for (var j = 0; j < data.length; j++) {
+          arr[j] = String.fromCharCode(data[j]);
+        }
+        var bstr = arr.join("");
+        var workbook = XLSX.read(bstr, {type: "binary"});
+        var first_sheet_name = workbook.SheetNames[0];
+        var worksheet = workbook.Sheets[first_sheet_name];
+        resolve(worksheet);
+      };
+
+      fr.onerror = function() {
+        reject(fr);
+      };
+
+      fr.readAsArrayBuffer(file);
+    });
   }
 
   /**
    * Populates the new students enrolment table with data from uploaded excel.
    */
   uploadEnrollData() {
-    // Solution below adapted from https://www.codegrepper.com/code-examples/javascript/read+xlsx+and+xls+file+in+typescript
-    const fileReader = new FileReader();
-    fileReader.onload = (e) => {
-      this.arrayBuffer = fileReader.result;
-      var data = new Uint8Array(this.arrayBuffer);
-      var arr = new Array();
-      for (var i = 0; i < data.length; i++) {
-        arr[i] = String.fromCharCode(data[i]);
-      }
-      var bstr = arr.join("");
-      var workbook = XLSX.read(bstr, {type:"binary"});
-      var first_sheet_name = workbook.SheetNames[0];
-      var worksheet = workbook.Sheets[first_sheet_name];
 
-      this.loadNewStudentsData(this.hotRegisterer.getInstance(this.newStudentsHOT), XLSX.utils.sheet_to_json(worksheet,{raw:true}));
-    }
-
-    // Show error message if no file selected
-    if (this.file == null) {
+    // Show error message if no file selected for upload
+    if (this.file[0] == null) {
       this.enrollErrorMessage = this.UPLOAD_ERROR_MESSAGE;
     } else {
-      fileReader.readAsArrayBuffer(this.file);
+      var full_sheet;
+      let readers = [];
+      for (var i = 0; i < this.file.length; i++) {
+        readers.push(this.readExcelFile(this.file[i]));
+      }
+
+      Promise.all(readers).then((values) => {
+        var full_sheet;
+
+        for (var k = 0; k < values.length; k++) {
+          if (values.length == 1) {
+            this.loadNewStudentsData(this.hotRegisterer.getInstance(this.newStudentsHOT),
+                    XLSX.utils.sheet_to_json(values[0], {raw:true}));
+          } else if (k == 0) {
+            full_sheet = values[0];
+          } else if (k == values.length - 1) {
+            full_sheet = XLSX.utils.sheet_add_json(full_sheet, XLSX.utils.sheet_to_json(values[k], {raw:true}),
+                    {skipHeader: true, header: ["Section", "Team", "Name", "Email", "Comments"], origin: -1});
+            this.loadNewStudentsData(this.hotRegisterer.getInstance(this.newStudentsHOT),
+                    XLSX.utils.sheet_to_json(full_sheet, {raw:true}));
+          } else {
+            full_sheet = XLSX.utils.sheet_add_json(full_sheet, XLSX.utils.sheet_to_json(values[k], {raw:true}),
+                    {skipHeader: true, header: ["Section", "Team", "Name", "Email", "Comments"], origin: -1});
+          }
+        }
+      });
     }
   }
 
